@@ -3,7 +3,7 @@ package fetch
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -36,7 +36,7 @@ func FetchCourses(cookieJar *cookiejar.Jar) (string, error) {
 	defer resp1.Body.Close()
 
 	// 读取
-	content, err := ioutil.ReadAll(resp1.Body)
+	content, err := io.ReadAll(resp1.Body)
 	if err != nil {
 		return "", err
 	}
@@ -75,7 +75,7 @@ func FetchCourses(cookieJar *cookiejar.Jar) (string, error) {
 	defer resp2.Body.Close()
 
 	// 读取
-	content, err = ioutil.ReadAll(resp2.Body)
+	content, err = io.ReadAll(resp2.Body)
 	if err != nil {
 		return "", err
 	}
@@ -111,7 +111,7 @@ func FetchLearnWeek(cookieJar *cookiejar.Jar) (int, error) {
 	defer resp1.Body.Close()
 
 	// 读取
-	content, err := ioutil.ReadAll(resp1.Body)
+	content, err := io.ReadAll(resp1.Body)
 	if err != nil {
 		return 0, err
 	}

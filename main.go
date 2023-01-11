@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/whoisnian/getMyCourses/fetch"
-	"github.com/whoisnian/getMyCourses/generate"
-	"github.com/whoisnian/getMyCourses/login"
-	"io/ioutil"
 	"net/http/cookiejar"
+	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/TeamSUEP/getMyCourses/fetch"
+	"github.com/TeamSUEP/getMyCourses/generate"
+	"github.com/TeamSUEP/getMyCourses/login"
 )
 
 func main() {
@@ -76,7 +77,7 @@ func main() {
 	}
 
 	// 保存到文件
-	err = ioutil.WriteFile("myCourses.ics", []byte(ics), 0644)
+	err = os.WriteFile("myCourses.ics", []byte(ics), 0644)
 	if err != nil {
 		fmt.Println(err.Error())
 		return

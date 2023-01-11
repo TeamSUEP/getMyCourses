@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -43,7 +43,7 @@ func LoginViaSupwisdom(username string, password string) (*cookiejar.Jar, error)
 	defer resp1.Body.Close()
 
 	// 读取
-	content, err := ioutil.ReadAll(resp1.Body)
+	content, err := io.ReadAll(resp1.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func LoginViaSupwisdom(username string, password string) (*cookiejar.Jar, error)
 	defer resp2.Body.Close()
 
 	// 读取
-	content, err = ioutil.ReadAll(resp2.Body)
+	content, err = io.ReadAll(resp2.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func LoginViaTpass(username string, password string) (*cookiejar.Jar, error) {
 	defer resp2.Body.Close()
 
 	// 读取
-	content, err := ioutil.ReadAll(resp2.Body)
+	content, err := io.ReadAll(resp2.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func LoginViaTpass(username string, password string) (*cookiejar.Jar, error) {
 	defer resp3.Body.Close()
 
 	// 读取
-	content, err = ioutil.ReadAll(resp3.Body)
+	content, err = io.ReadAll(resp3.Body)
 	if err != nil {
 		return nil, err
 	}
