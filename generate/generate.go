@@ -2,7 +2,6 @@ package generate
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,76 +16,48 @@ type CourseTime struct {
 
 // 课程信息
 type Course struct {
-	courseID    string
+	teacherId   string
+	teacherName string
+	courseId    string
 	courseName  string
-	roomID      string
+	roomId      string
 	roomName    string
 	weeks       string
 	courseTimes []CourseTime
 }
 
-// 作息时间表，浑南上课时间
-var ClassStartTimeHunnan = []string{
-	"083000",
-	"093000",
-	"104000",
-	"114000",
-	"140000",
-	"150000",
-	"161000",
-	"171000",
-	"183000",
-	"193000",
-	"203000",
-	"213000",
-}
-
-// 作息时间表，浑南下课时间
-var classEndTimeHunnan = []string{
-	"092000",
-	"102000",
-	"113000",
-	"123000",
-	"145000",
-	"155000",
-	"170000",
-	"180000",
-	"192000",
-	"202000",
-	"212000",
-	"222000",
-}
-
-// 作息时间表，南湖上课时间
-var ClassStartTimeNanhu = []string{
-	"080000",
-	"090000",
+// 作息时间表，临港上课时间
+var ClassStartTime = []string{
+	"082000",
+	"091000",
 	"101000",
-	"111000",
-	"140000",
-	"150000",
-	"161000",
-	"171000",
-	"183000",
-	"193000",
-	"203000",
-	"213000",
+	"110000",
+	"115000",
+	"132000",
+	"141000",
+	"151000",
+	"160000",
+	"165000",
+	"181500",
+	"190500",
+	"195500",
 }
 
-// 作息时间表，南湖下课时间
-var classEndTimeNanhu = []string{
-	"085000",
-	"095000",
-	"110000",
-	"120000",
-	"145000",
-	"155000",
-	"170000",
-	"180000",
-	"192000",
-	"202000",
-	"212000",
-	"222000",
+// 作息时间表，临港下课时间
+var classEndTime = []string{
+	"090500",
+	"095500",
+	"105500",
+	"114500",
+	"123000",
+	"140500",
+	"145500",
+	"155500",
+	"164500",
+	"173000",
+	"190000",
+	"195000",
+	"203500",
 }
 
 // ics文件用到的星期几简称
@@ -102,20 +73,27 @@ var dayOfWeek = []string{
 
 // 从html源码生成ics文件内容
 func GenerateIcs(html string, schoolStartDay time.Time) (string, error) {
-	fmt.Println("\n生成ics文件中。。。")
+	fmt.Println("\n生成ics文件中...")
 	// 利用正则匹配有效信息
+	// https://regex101.com
 	var myCourses []Course
-	reg1 := regexp.MustCompile(`TaskActivity\(actTeacherId.join\(','\),actTeacherName.join\(','\),"(.*)","(.*)\(.*\)","(.*)","(.*)","(.*)",null,null,assistantName,"",""\);((?:\s*index =\d+\*unitCount\+\d+;\s*.*\s)+)`)
+	reg1 := regexp.MustCompile(`TaskActivity\("(.*)","(.*)","(.*)","(.*)\(.*\)","(.*)","(.*)","(.*)"\);((?:\s*index =\d+\*unitCount\+\d+;\s*.*\s)+)`)
 	reg2 := regexp.MustCompile(`\s*index =(\d+)\*unitCount\+(\d+);\s*`)
 	coursesStr := reg1.FindAllStringSubmatch(html, -1)
 	for _, courseStr := range coursesStr {
+		// // debug
+		// for i, str := range courseStr {
+		// 	fmt.Println(i, str)
+		// }
 		var course Course
-		course.courseID = courseStr[1]
-		course.courseName = courseStr[2]
-		course.roomID = courseStr[3]
-		course.roomName = courseStr[4]
-		course.weeks = courseStr[5]
-		for _, indexStr := range strings.Split(courseStr[6], "table0.activities[index][table0.activities[index].length]=activity;") {
+		course.teacherId = courseStr[1]
+		course.teacherName = courseStr[2]
+		course.courseId = courseStr[3]
+		course.courseName = courseStr[4]
+		course.roomId = courseStr[5]
+		course.roomName = courseStr[6]
+		course.weeks = courseStr[7]
+		for _, indexStr := range strings.Split(courseStr[8], "table0.activities[index][table0.activities[index].length]=activity;") {
 			if !strings.Contains(indexStr, "unitCount") {
 				continue
 			}
@@ -130,7 +108,7 @@ func GenerateIcs(html string, schoolStartDay time.Time) (string, error) {
 	// 生成ics文件头
 	var icsData string
 	icsData = `BEGIN:VCALENDAR
-PRODID:-//nian//getMyCourses 20190522//EN
+PRODID:-//TeamSUEP//getMyCourses 20230111//EN
 VERSION:2.0
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
@@ -225,23 +203,19 @@ END:VTIMEZONE` + "\n"
 			eventData = `BEGIN:VEVENT` + "\n"
 			startDate := schoolStartDay.AddDate(0, 0, (startWeek[i]-1)*7+weekDay+1)
 
-			if strings.Contains(course.roomName, "浑南") {
-				eventData = eventData + `DTSTART;TZID=Asia/Shanghai:` + startDate.Format("20060102T") + ClassStartTimeHunnan[st] + "\n"
-				eventData = eventData + `DTEND;TZID=Asia/Shanghai:` + startDate.Format("20060102T") + classEndTimeHunnan[en] + "\n"
-			} else {
-				eventData = eventData + `DTSTART;TZID=Asia/Shanghai:` + startDate.Format("20060102T") + ClassStartTimeNanhu[st] + "\n"
-				eventData = eventData + `DTEND;TZID=Asia/Shanghai:` + startDate.Format("20060102T") + classEndTimeNanhu[en] + "\n"
-			}
+			eventData = eventData + `DTSTART;TZID=Asia/Shanghai:` + startDate.Format("20060102T") + ClassStartTime[st] + "\n"
+			eventData = eventData + `DTEND;TZID=Asia/Shanghai:` + startDate.Format("20060102T") + classEndTime[en] + "\n"
+
 			eventData = eventData + periods[i] + "\n"
 			eventData = eventData + `DTSTAMP:` + time.Now().Format("20060102T150405Z") + "\n"
-			eventData = eventData + `UID:` + uuid.New().String() + "\n"
+			// eventData = eventData + `UID:` + uuid.New().String() + "\n"
 			eventData = eventData + `CREATED:` + time.Now().Format("20060102T150405Z") + "\n"
-			eventData = eventData + `DESCRIPTION:` + "\n"
+			// eventData = eventData + `DESCRIPTION:` + "\n"
 			eventData = eventData + `LAST-MODIFIED:` + time.Now().Format("20060102T150405Z") + "\n"
 			eventData = eventData + `LOCATION:` + course.roomName + "\n"
 			eventData = eventData + `SEQUENCE:0
 STATUS:CONFIRMED` + "\n"
-			eventData = eventData + `SUMMARY:` + course.courseName + "\n"
+			eventData = eventData + `SUMMARY:` + course.courseName + " " + course.teacherName + "\n"
 
 			eventData = eventData + `TRANSP:OPAQUE
 END:VEVENT` + "\n"
