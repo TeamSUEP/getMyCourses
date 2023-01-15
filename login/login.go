@@ -71,20 +71,10 @@ func LoginViaSupwisdom(username string, password string) (*cookiejar.Jar, error)
 		return nil, err
 	}
 
-	// 写入文件
-	err = os.WriteFile("captcha.jpg", content, 0644)
+	captcha, err := readCaptcha(content)
 	if err != nil {
 		return nil, err
 	}
-
-	// 人工输入验证码
-	path, err := filepath.Abs("captcha.jpg")
-	if err != nil {
-		return nil, err
-	}
-	fmt.Print("请打开 " + path + " 查看并输入验证码：")
-	var captcha string
-	fmt.Scanln(&captcha)
 
 	// 登录
 	formValues := make(url.Values)
@@ -121,19 +111,33 @@ func LoginViaSupwisdom(username string, password string) (*cookiejar.Jar, error)
 			return nil, err
 		}
 		// 提取错误信息
-		if strings.Contains(string(content), "WrongCaptcha") {
+		switch {
+		case strings.Contains(string(content), "security.WrongCaptcha"):
 			return nil, errors.New("验证码错误。")
+		case strings.Contains(string(content), "security.UsernameNotFound"):
+			return nil, errors.New("用户名不存在。")
+		case strings.Contains(string(content), "security.BadCredentials"):
+			return nil, errors.New("密码错误。")
+		case strings.Contains(string(content), "security.Disabled"):
+			return nil, errors.New("账号已被禁用。")
 		}
 		s, err := htmlquery.Parse(strings.NewReader(string(content)))
 		if err != nil {
 			return nil, err
 		}
-		msg, err := htmlquery.QueryAll(s, "//title")
+		msg, err := htmlquery.Query(s, "//div[@class='actionError']")
 		if err != nil {
 			return nil, err
 		}
-		if len(msg) > 0 {
-			return nil, errors.New(htmlquery.InnerText(msg[0]))
+		if msg != nil && strings.TrimSpace(htmlquery.InnerText(msg)) != "" {
+			return nil, errors.New(strings.TrimSpace(htmlquery.InnerText(msg)))
+		}
+		msg, err = htmlquery.Query(s, "//title")
+		if err != nil {
+			return nil, err
+		}
+		if msg != nil && htmlquery.InnerText(msg) != "" {
+			return nil, errors.New(htmlquery.InnerText(msg))
 		}
 		return nil, errors.New("登录失败。")
 	}
@@ -208,6 +212,51 @@ func LoginViaIds(username string, password string, service string) (*cookiejar.J
 	formValues.Set("username", username)
 	formValues.Set("password", password)
 
+	// 检查是否需要验证码
+	req, err = http.NewRequest(http.MethodGet, config.IdsUrl+"/authserver/needCaptcha.html", nil)
+	if err != nil {
+		return nil, err
+	}
+	q = req.URL.Query()
+	q.Add("username", username)
+	req.URL.RawQuery = q.Encode()
+
+	// 发送
+	resp2, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp2.Body.Close()
+
+	// 读取
+	content, err = io.ReadAll(resp2.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查
+	if strings.Contains(string(content), "true") {
+		// 获取验证码
+		resp3, err := client.Get(config.IdsUrl + "/authserver/captcha.html")
+		if err != nil {
+			return nil, err
+		}
+		defer resp3.Body.Close()
+
+		// 读取
+		content, err = io.ReadAll(resp3.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		captcha, err := readCaptcha(content)
+		if err != nil {
+			return nil, err
+		}
+
+		formValues.Set("captchaResponse", captcha)
+	}
+
 	// 登录
 	req, err = http.NewRequest(http.MethodPost, config.IdsUrl+"/authserver/login", strings.NewReader(formValues.Encode()))
 	if err != nil {
@@ -222,11 +271,11 @@ func LoginViaIds(username string, password string, service string) (*cookiejar.J
 	req.URL.RawQuery = q.Encode()
 
 	// 发送
-	resp2, err := client.Do(req)
+	resp4, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp2.Body.Close()
+	defer resp4.Body.Close()
 
 	// 检查
 	succeed, err := checkLogin(cookieJar)
@@ -235,7 +284,7 @@ func LoginViaIds(username string, password string, service string) (*cookiejar.J
 	}
 	if !succeed {
 		// 读取
-		content, err := io.ReadAll(resp2.Body)
+		content, err := io.ReadAll(resp4.Body)
 		if err != nil {
 			return nil, err
 		}
@@ -281,4 +330,26 @@ func checkLogin(cookieJar *cookiejar.Jar) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// 写入验证码图片到文件，读取用户输入
+func readCaptcha(captchaImage []byte) (string, error) {
+	// 写入文件
+	err := os.WriteFile("captcha.jpg", captchaImage, 0644)
+	if err != nil {
+		return "", err
+	}
+
+	// 人工输入验证码
+	path, err := filepath.Abs("captcha.jpg")
+	if err != nil {
+		return "", err
+	}
+	fmt.Print("请打开 " + path + " 查看并输入验证码：")
+	var captcha string
+	fmt.Scanln(&captcha)
+	if captcha == "" {
+		return "", errors.New("验证码不能为空。")
+	}
+	return captcha, nil
 }
