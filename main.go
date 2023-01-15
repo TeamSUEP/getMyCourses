@@ -48,12 +48,26 @@ func main() {
 		return
 	}
 
+	// 获取当前学期
+	semesterId, err := fetch.GetCurrentSemester(cookieJar)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	// 获取学期列表
+	err = fetch.PrintSemesterList(cookieJar)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
 	// 选择学期
-	var semesterId string
-	fmt.Print("\n请输入学期ID（如果你不知道这是什么，请按回车键）：")
-	fmt.Scanln(&semesterId)
-	if semesterId == "" {
-		semesterId = "null"
+	var temp string
+	fmt.Printf("\n请输入学期ID（默认为当前学期 %s）：", semesterId)
+	fmt.Scanln(&temp)
+	if temp != "" {
+		semesterId = temp
 	}
 
 	// 获取包含课程表的html源码

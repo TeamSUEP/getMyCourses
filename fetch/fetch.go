@@ -14,6 +14,81 @@ import (
 	"github.com/TeamSUEP/getMyCourses/config"
 )
 
+type semester struct {
+	id         string
+	schoolYear string
+	term       string
+}
+
+// 获取当前学期
+func GetCurrentSemester(cookieJar *cookiejar.Jar) (string, error) {
+	fmt.Println("\n获取当前学期中...")
+	// http 请求客户端
+	client := &http.Client{
+		Jar:       cookieJar,
+		Transport: config.Tr,
+	}
+
+	// 发送请求
+	resp, err := client.Get(config.SupwisdomUrl + "/eams/courseTableForStd.action")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// 读取
+	for _, v := range resp.Cookies() {
+		if v.Name == "semester.id" {
+			return v.Value, nil
+		}
+	}
+
+	return "", errors.New("获取当前学期失败")
+}
+
+// 获取学期列表
+// 不稳定，需要先 GET /eams/courseTableForStd.action
+func PrintSemesterList(cookieJar *cookiejar.Jar) error {
+	fmt.Println("\n获取学期列表中...")
+	// http 请求客户端
+	client := &http.Client{
+		Jar:       cookieJar,
+		Transport: config.Tr,
+	}
+
+	// 发送请求
+	resp, err := client.PostForm(config.SupwisdomUrl+"/eams/dataQuery.action", url.Values{"dataType": {"semesterCalendar"}})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// 读取
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// 利用正则匹配有效信息
+	// https://regex101.com
+	var semesters []semester
+	reg := regexp.MustCompile(`{id:(\d+),schoolYear:"(.*?)",name:"(.*?)"}`)
+	semesterStr := reg.FindAllStringSubmatch(string(content), -1)
+	for _, v := range semesterStr {
+		semesters = append(semesters, semester{
+			id:         v[1],
+			schoolYear: v[2],
+			term:       v[3],
+		})
+	}
+
+	fmt.Println("获取学期列表完成。\n\n学期列表：")
+	for _, v := range semesters {
+		fmt.Printf("%s:\t%s学年%s学期\n", v.id, v.schoolYear, v.term)
+	}
+	return nil
+}
+
 // 获取课程表所在页面源代码
 func FetchCourses(cookieJar *cookiejar.Jar, semesterId string) (string, error) {
 	fmt.Println("\n获取课表详情中...")
@@ -37,21 +112,18 @@ func FetchCourses(cookieJar *cookiejar.Jar, semesterId string) (string, error) {
 		return "", err
 	}
 
-	// 检查
+	// 检查学生课表的 ids
 	temp := string(content)
 	if !strings.Contains(temp, "bg.form.addInput(form,\"ids\",\"") {
 		return "", errors.New("获取ids失败")
 	}
 	temp = temp[strings.Index(temp, "bg.form.addInput(form,\"ids\",\"")+29 : strings.Index(temp, "bg.form.addInput(form,\"ids\",\"")+50]
 	ids := temp[:strings.Index(temp, "\");")]
-	if semesterId == "null" {
-		semesterId = resp1.Cookies()[0].Value
-	}
 
 	// 第二次请求
 	formValues := url.Values{
 		"ignoreHead":   {"1"},
-		"setting.kind": {"std"},
+		"setting.kind": {"std"}, // std: 学生课表, class: 班级课表
 		"startWeek":    {""},
 		"semester.id":  {semesterId},
 		"ids":          {ids},
