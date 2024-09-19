@@ -20,8 +20,19 @@ type semester struct {
 	term       string
 }
 
+func extractProjectId(bodyStr string) (string, error) {
+	// 使用正则表达式查找 projectId
+	re := regexp.MustCompile(`projectId=(\d+)'`)
+	matches := re.FindStringSubmatch(bodyStr)
+	if len(matches) > 1 {
+		return matches[1], nil
+	}
+
+	return "", errors.New("未找到 projectId")
+}
+
 // 获取当前学期
-func GetCurrentSemester(cookieJar *cookiejar.Jar) (string, error) {
+func GetCurrentSemester(cookieJar *cookiejar.Jar) (string, string, error) {
 	fmt.Println("\n获取当前学期中...")
 	// http 请求客户端
 	client := &http.Client{
@@ -32,18 +43,46 @@ func GetCurrentSemester(cookieJar *cookiejar.Jar) (string, error) {
 	// 发送请求
 	resp, err := client.Get(config.SupwisdomUrl + "/eams/courseTableForStd.action")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	// 读取
 	for _, v := range resp.Cookies() {
 		if v.Name == "semester.id" {
-			return v.Value, nil
+			return v.Value, "", nil
 		}
 	}
 
-	return "", errors.New("获取当前学期失败")
+	// 读取响应体为字符串
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", err
+	}
+	bodyStr := string(content)
+
+	// 没有读取到 semester.id，读取 projectId
+	projectId, err := extractProjectId(bodyStr)
+	if err != nil {
+		fmt.Println("未能提取到 projectId，使用默认的 projectId=1 继续请求...")
+		projectId = "1" // 如果提取失败，默认使用1
+	}
+
+	// 使用提取的或默认的 projectId 发送第二个请求
+	resp, err = client.Get(config.SupwisdomUrl + "/eams/courseTableForStd!innerIndex.action?projectId=" + projectId)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+
+	// 读取
+	for _, v := range resp.Cookies() {
+		if v.Name == "semester.id" {
+			return v.Value, projectId, nil
+		}
+	}
+
+	return "", "", errors.New("获取当前学期失败")
 }
 
 // 获取学期列表
@@ -90,7 +129,7 @@ func PrintSemesterList(cookieJar *cookiejar.Jar) error {
 }
 
 // 获取课程表所在页面源代码
-func FetchCourses(cookieJar *cookiejar.Jar, semesterId string) (string, error) {
+func FetchCourses(cookieJar *cookiejar.Jar, semesterId string, projectId string) (string, error) {
 	fmt.Println("\n获取课表详情中...")
 
 	// http 请求客户端
@@ -99,8 +138,20 @@ func FetchCourses(cookieJar *cookiejar.Jar, semesterId string) (string, error) {
 		Transport: config.Tr,
 	}
 
+	// 构造URL
+	courseTableUrl := config.SupwisdomUrl + "/eams/courseTableForStd"
+	if projectId != "" {
+		_, err := client.Get(courseTableUrl + ".action")
+		if err != nil {
+			return "", err
+		}
+		courseTableUrl += "!innerIndex.action?projectId=" + projectId
+	} else {
+		courseTableUrl += ".action"
+	}
+
 	// 第一次请求
-	resp1, err := client.Get(config.SupwisdomUrl + "/eams/courseTableForStd.action")
+	resp1, err := client.Get(courseTableUrl)
 	if err != nil {
 		return "", err
 	}

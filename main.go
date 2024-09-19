@@ -49,7 +49,7 @@ func main() {
 	}
 
 	// 获取当前学期
-	semesterId, err := fetch.GetCurrentSemester(cookieJar)
+	semesterId, projectId, err := fetch.GetCurrentSemester(cookieJar)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -71,7 +71,7 @@ func main() {
 	}
 
 	// 获取包含课程表的html源码
-	html, err := fetch.FetchCourses(cookieJar, semesterId)
+	html, err := fetch.FetchCourses(cookieJar, semesterId, projectId)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
